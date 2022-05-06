@@ -38,7 +38,7 @@ class CommentDetailView(View):
         return JsonResponse({'text': 'Комментарий успешно создан'},
                             status=201)
 
-
+            
 class PostDetailView(View):
     def get(self, request):
         post_title = request.GET.get('title', '')
@@ -51,14 +51,14 @@ class PostDetailView(View):
         response = {}
         for post in posts:
             comments = []
-            for comment in Comment.objects.filter(post=post, level=0):
+            for comment in post.comments.filter(level=0):
                 comments.append(comment.serialize_object(limit=2))
-            post_response = {
+            response[post.title] = {
                 'id': post.id,
                 'title': post.title,
                 'text': post.text,
-                'comments': comments}
-            response[post.title] = post_response
+                'comments': comments
+            }
         return JsonResponse(response, status=200)
 
     def post(self, request):
