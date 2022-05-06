@@ -1,4 +1,5 @@
 import json
+from logging import exception
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
@@ -22,23 +23,38 @@ class CommentDetailView(View):
 
     def post(self, request):
         post_body = json.loads(request.body)
+        post_id = post_body.get('post_id')
+        if not post_id:
+            return JsonResponse(
+                {'error': 'Укажите id поста'},
+                status=400,
+            )
         text = post_body.get('text')
         try:
-            post_id = Post.objects.get(pk=post_body['post_id'])
-        except ObjectDoesNotExist:
+            post_id = Post.objects.get(pk=post_id)
+        except (ObjectDoesNotExist, ValueError):
             return JsonResponse(
-                {'text': 'Пост с указанным id не существует'},
-                status=404)
+                {'error': 'Пост с указанным id не существует'},
+                status=404
+            )
         parent = post_body.get('parent')
         if parent:
-            Comment.objects.create(text=text, post=post_id,
-                                   parent=Comment.objects.get(pk=parent))
+            try:
+                Comment.objects.create(
+                    text=text, 
+                    post=post_id,
+                    parent=Comment.objects.get(pk=parent)
+                )
+            except (ObjectDoesNotExist, ValueError):
+                return JsonResponse(
+                    {'error': 'Комментарий с указанным id не существует'},
+                )
         else:
             Comment.objects.create(text=text, post=post_id)
         return JsonResponse({'text': 'Комментарий успешно создан'},
                             status=201)
 
-            
+
 class PostDetailView(View):
     def get(self, request):
         post_title = request.GET.get('title', '')
@@ -63,10 +79,16 @@ class PostDetailView(View):
 
     def post(self, request):
         post_body = json.loads(request.body)
+        title = post_body.get('title')
+        if not title:
+            return JsonResponse(
+                {'error': 'Укажите заголовок поста'},
+                status=400
+            )
+        text = post_body.get('text', '')
         try:
-            Post.objects.create(title=post_body['title'],
-                                text=post_body['text'])
+            Post.objects.create(title=title, text=text)
         except IntegrityError:
             return JsonResponse(
                 {'text': 'Пост с таким названием уже существует'}, status=400)
-        return JsonResponse({'text': 'Пост успешно создан'}, status=201)
+        return JsonResponse({'error': 'Пост успешно создан'}, status=201)
