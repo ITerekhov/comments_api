@@ -4,7 +4,6 @@ from mptt.models import MPTTModel, TreeForeignKey
 
 
 class Post(models.Model):
-
     title = models.CharField(max_length=200, unique=True)
     text = models.TextField()
 
@@ -13,7 +12,7 @@ class Post(models.Model):
 
 
 class Comment(MPTTModel):
-    text = models.TextField(null=True, blank=True)
+    text = models.TextField(blank=True)
     post = models.ForeignKey(Post, on_delete=models.CASCADE,
                              related_name='comments')
     parent = TreeForeignKey('self', on_delete=models.CASCADE,
