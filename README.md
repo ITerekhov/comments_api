@@ -28,7 +28,7 @@ $ docker-compose up -d --build
 ```
 Если запускаете приложение в первый раз, необходимо выполнить миграции:
 ```
-$ docker-compose exec web python manage.py migrate --noinput
+$ docker-compose run web python manage.py migrate --noinput
 ```
 На этом этапе приложение бдует работать на указанном вами хосте, или на localhost по умолчанию. Для проверки можете выполнить
 ```
