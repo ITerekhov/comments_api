@@ -4,9 +4,26 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.views import View
-from django.db.models import F 
 
 from .models import Post, Comment
+
+
+def serialize_comments(comments_level, all_comments, limit=float('inf')):
+    response = []
+    for comment in comments_level:
+        if comment.level > limit:
+            return None
+        serialized_comment = {
+            'id': comment.id,
+            'text': comment.text,
+            'level': comment.level,
+            'replies': serialize_comments(
+                [i for i in all_comments if i.parent == comment],
+                all_comments, limit
+            )
+        }
+        response.append(serialized_comment)
+    return response
 
 
 class CommentDetailView(View):
@@ -19,7 +36,9 @@ class CommentDetailView(View):
             return JsonResponse(
                 {'error': 'Комментарий с указанным id не существует'},
                 status=404)
-        all_comments = Comment.objects.filter(post=comment.post).select_related('parent')
+
+        all_comments = Comment.objects.filter(post=comment.post) \
+                                      .select_related('parent')
         serialized_comment = serialize_comments([comment], all_comments)
         return JsonResponse({'comment': serialized_comment})
 
@@ -39,15 +58,16 @@ class CommentDetailView(View):
                 {'error': 'Пост с указанным id не существует'},
                 status=404
             )
+
         parent_id = post_body.get('parent')
         if parent_id:
             try:
-                parent=Comment.objects.get(pk=parent_id)
+                parent = Comment.objects.get(pk=parent_id)
                 Comment.objects.create(
-                    text=text, 
+                    text=text,
                     post=post_id,
                     parent=parent,
-                    level = parent.level + 1
+                    level=parent.level + 1
                 )
             except (ObjectDoesNotExist, ValueError):
                 return JsonResponse(
@@ -59,31 +79,25 @@ class CommentDetailView(View):
                             status=201)
 
 
-def serialize_comments(comments_level, all_comments, limit=float('inf')):
-    response = []
-    for comment in comments_level:
-        if comment.level > limit:
-            return None
-        serialized_comment = {'id': comment.id, 
-               'text': comment.text, 
-               'level': comment.level,
-               'replies': serialize_comments([i for i in all_comments if i.parent == comment], all_comments, limit)}
-        response.append(serialized_comment)
-    return response
-
 class PostDetailView(View):
+
     def get(self, request):
         post_title = request.GET.get('title', '')
         try:
-            posts = Post.objects.filter(title__contains=post_title).prefetch_related('comments__parent')
+            posts = Post.objects.filter(title__contains=post_title) \
+                                .prefetch_related('comments__parent')
         except ObjectDoesNotExist:
             return JsonResponse(
                 {'error': 'Пост с указанным названием не существует'},
                 status=404)
+
         response = {}
         for post in posts:
             all_comments = post.comments.all()
-            serialized_comments = serialize_comments([i for i in all_comments if not i.parent], all_comments, limit=2)
+            serialized_comments = serialize_comments(
+                [i for i in all_comments if not i.parent],
+                all_comments, limit=2
+            )
             response[post.title] = {
                 'id': post.id,
                 'title': post.title,
@@ -100,6 +114,7 @@ class PostDetailView(View):
                 {'error': 'Укажите заголовок поста'},
                 status=400
             )
+
         text = post_body.get('text', '')
         try:
             Post.objects.create(title=title, text=text)
