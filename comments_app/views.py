@@ -4,6 +4,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
 from django.http import JsonResponse
 from django.views import View
+from django.db.models import F 
 
 from .models import Post, Comment
 
@@ -38,13 +39,15 @@ class CommentDetailView(View):
                 {'error': 'Пост с указанным id не существует'},
                 status=404
             )
-        parent = post_body.get('parent')
-        if parent:
+        parent_id = post_body.get('parent')
+        if parent_id:
             try:
+                parent=Comment.objects.get(pk=parent_id)
                 Comment.objects.create(
                     text=text, 
                     post=post_id,
-                    parent=Comment.objects.get(pk=parent)
+                    parent=parent,
+                    level = parent.level + 1
                 )
             except (ObjectDoesNotExist, ValueError):
                 return JsonResponse(
@@ -61,6 +64,7 @@ def serialize_comments(comments_level, all_comments):
     for comment in comments_level:
         serialized_comment = {'id': comment.id, 
                'text': comment.text, 
+               'level': comment.level,
                'replies': serialize_comments([i for i in all_comments if i.parent == comment], all_comments)}
         response.append(serialized_comment)
     return response

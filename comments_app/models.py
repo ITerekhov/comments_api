@@ -15,6 +15,7 @@ class Comment(models.Model):
                              related_name='comments')
     parent = models.ForeignKey('self', on_delete=models.CASCADE,
                             null=True, blank=True, related_name='children')
+    level = models.IntegerField(default=0)
 
     class MPTTMeta:
         order_insertion_by = ['text']
