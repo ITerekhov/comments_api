@@ -59,13 +59,15 @@ class CommentDetailView(View):
                             status=201)
 
 
-def serialize_comments(comments_level, all_comments):
+def serialize_comments(comments_level, all_comments, limit=float('inf')):
     response = []
     for comment in comments_level:
+        if comment.level > limit:
+            return None
         serialized_comment = {'id': comment.id, 
                'text': comment.text, 
                'level': comment.level,
-               'replies': serialize_comments([i for i in all_comments if i.parent == comment], all_comments)}
+               'replies': serialize_comments([i for i in all_comments if i.parent == comment], all_comments, limit)}
         response.append(serialized_comment)
     return response
 
@@ -81,7 +83,7 @@ class PostDetailView(View):
         response = {}
         for post in posts:
             all_comments = post.comments.all()
-            serialized_comments = serialize_comments([i for i in all_comments if not i.parent], all_comments)
+            serialized_comments = serialize_comments([i for i in all_comments if not i.parent], all_comments, limit=2)
             response[post.title] = {
                 'id': post.id,
                 'title': post.title,
