@@ -1,5 +1,4 @@
 import json
-from logging import exception
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError
@@ -17,9 +16,11 @@ class CommentDetailView(View):
             comment = Comment.objects.get(pk=comment_id)
         except ObjectDoesNotExist:
             return JsonResponse(
-                {'text': 'Комментарий с указанным id не существует'},
+                {'error': 'Комментарий с указанным id не существует'},
                 status=404)
-        return JsonResponse({'comment': comment.serialize_object()})
+        all_comments = Comment.objects.filter(post=comment.post).select_related('parent')
+        serialized_comment = serialize_comments([comment], all_comments)
+        return JsonResponse({'comment': serialized_comment})
 
     def post(self, request):
         post_body = json.loads(request.body)
@@ -55,25 +56,33 @@ class CommentDetailView(View):
                             status=201)
 
 
+def serialize_comments(comments_level, all_comments):
+    response = []
+    for comment in comments_level:
+        serialized_comment = {'id': comment.id, 
+               'text': comment.text, 
+               'replies': serialize_comments([i for i in all_comments if i.parent == comment], all_comments)}
+        response.append(serialized_comment)
+    return response
+
 class PostDetailView(View):
     def get(self, request):
         post_title = request.GET.get('title', '')
         try:
-            posts = Post.objects.filter(title__contains=post_title)
+            posts = Post.objects.filter(title__contains=post_title).prefetch_related('comments__parent')
         except ObjectDoesNotExist:
             return JsonResponse(
-                {'text': 'Пост с указанным названием не существует'},
+                {'error': 'Пост с указанным названием не существует'},
                 status=404)
         response = {}
         for post in posts:
-            comments = []
-            for comment in post.comments.filter(level=0):
-                comments.append(comment.serialize_object(limit=2))
+            all_comments = post.comments.all()
+            serialized_comments = serialize_comments([i for i in all_comments if not i.parent], all_comments)
             response[post.title] = {
                 'id': post.id,
                 'title': post.title,
                 'text': post.text,
-                'comments': comments
+                'comments': serialized_comments
             }
         return JsonResponse(response, status=200)
 
@@ -90,5 +99,5 @@ class PostDetailView(View):
             Post.objects.create(title=title, text=text)
         except IntegrityError:
             return JsonResponse(
-                {'text': 'Пост с таким названием уже существует'}, status=400)
-        return JsonResponse({'error': 'Пост успешно создан'}, status=201)
+                {'error': 'Пост с таким названием уже существует'}, status=400)
+        return JsonResponse({'text': 'Пост успешно создан'}, status=201)
